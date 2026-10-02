@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>手遊體力提醒儀表板</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f7ff',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen pb-12">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-30 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 px-4 lg:px-8 py-4">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2.5 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
+          <i data-lucide="battery-charging" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">
+            手遊體力提醒助手
+          </h1>
+          <p class="text-xs text-slate-400">多款遊戲體力倒數與溢出預警通知</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-3 flex-wrap">
+        <!-- Notification Toggle -->
+        <button id="notificationBtn" onclick="requestNotificationPermission()" class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
+          <i data-lucide="bell" class="w-4 h-4" id="bellIcon"></i>
+          <span id="notificationText">啟用推播通知</span>
+        </button>
+
+        <!-- Test Audio Button -->
+        <button onclick="playAlertSound()" class="p-2 rounded-lg text-slate-400 border border-slate-800 bg-slate-900 hover:text-slate-200 hover:bg-slate-800 transition" title="測試提示音">
+          <i data-lucide="volume-2" class="w-4 h-4"></i>
+        </button>
+
+        <!-- Add Game Button -->
+        <button onclick="openAddModal()" class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-lg font-medium text-sm shadow-lg shadow-blue-500/20 transition hover:scale-[1.02] active:scale-[0.98]">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          新增遊戲
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 lg:px-8 mt-6">
+    
+    <!-- Stats Banner -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div class="bg-slate-900/90 border border-slate-800 p-3.5 rounded-xl flex items-center gap-3">
+        <div class="p-2 rounded-lg bg-slate-800 text-blue-400">
+          <i data-lucide="gamepad-2" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400">追蹤中的遊戲</div>
+          <div id="statTotalGames" class="text-lg font-bold text-slate-100">0</div>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/90 border border-slate-800 p-3.5 rounded-xl flex items-center gap-3">
+        <div class="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+          <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400">即將滿體 (<30分鐘)</div>
+          <div id="statWarningGames" class="text-lg font-bold text-amber-400">0</div>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/90 border border-slate-800 p-3.5 rounded-xl flex items-center gap-3">
+        <div class="p-2 rounded-lg bg-red-500/10 text-red-400">
+          <i data-lucide="zap-off" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400">已完全溢出</div>
+          <div id="statFullGames" class="text-lg font-bold text-red-400">0</div>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/90 border border-slate-800 p-3.5 rounded-xl flex items-center gap-3">
+        <div class="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+          <i data-lucide="clock" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="text-xs text-slate-400">下次最近滿體</div>
+          <div id="statNextFull" class="text-xs font-semibold text-emerald-400 truncate">無</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification Permission Alert (Shown if denied or default) -->
+    <div id="notificationAlertBanner" class="hidden mb-6 bg-slate-900 border border-amber-500/30 rounded-xl p-4 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <i data-lucide="bell-off" class="w-5 h-5 text-amber-400 shrink-0"></i>
+        <p class="text-xs sm:text-sm text-slate-300">
+          強烈建議點擊「啟用推播通知」，以便系統在後台或離線前送出滿體警報！
+        </p>
+      </div>
+      <button onclick="requestNotificationPermission()" class="px-3 py-1.5 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 rounded-lg text-xs font-medium shrink-0">
+        立刻允許
+      </button>
+    </div>
+
+    <!-- Cards Container -->
+    <div id="gamesGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <!-- Cards rendered via JS -->
+    </div>
+
+    <!-- Empty State -->
+    <div id="emptyState" class="hidden flex-col items-center justify-center py-16 text-center border-2 border-dashed border-slate-800 rounded-2xl bg-slate-900/40">
+      <div class="w-16 h-16 bg-slate-800/80 rounded-full flex items-center justify-center text-slate-500 mb-4">
+        <i data-lucide="plus-circle" class="w-8 h-8"></i>
+      </div>
+      <h3 class="text-lg font-semibold text-slate-200 mb-1">目前沒有追蹤中的遊戲</h3>
+      <p class="text-sm text-slate-400 max-w-sm mb-6">點擊下方按鈕或右上角「新增遊戲」，開始設定您的手遊體力提醒吧！</p>
+      <button onclick="openAddModal()" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-medium transition flex items-center gap-2">
+        <i data-lucide="plus" class="w-4 h-4"></i> 新增第一款遊戲
+      </button>
+    </div>
+
+  </main>
+
+  <!-- Add/Edit Modal -->
+  <div id="gameModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden transition-opacity">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative overflow-hidden">
+      
+      <div class="flex items-center justify-between mb-5 border-b border-slate-800 pb-3">
+        <h2 id="modalTitle" class="text-lg font-bold text-slate-100 flex items-center gap-2">
+          <i data-lucide="gamepad" class="w-5 h-5 text-blue-400"></i>
+          新增手遊體力設定
+        </h2>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-slate-200 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="gameForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+        <input type="hidden" id="gameId">
+
+        <!-- Preset Selector -->
+        <div>
+          <label class="block text-xs font-medium text-slate-400 mb-1">快速套用熱門遊戲預設</label>
+          <select id="presetSelect" onchange="applyPreset(this.value)" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
+            <option value="">-- 選擇預設範本 (可自動帶入參數) --</option>
+            <option value="genshin">原神 (200體力 / 8分鐘回1體)</option>
+            <option value="starrail">崩壞：星穹鐵道 (240體力 / 6分鐘回1體)</option>
+            <option value="zzz">絕區零 (240體力 / 6分鐘回1體)</option>
+            <option value="bluearchive">蔚藍檔案 (240體力 / 6分鐘回1體)</option>
+            <option value="arknights">明日方舟 (135體力 / 6分鐘回1體)</option>
+            <option value="fgo">Fate/Grand Order (142體力 / 5分鐘回1體)</option>
+            <option value="nikke">勝利女神：妮姬 (100體力 / 10分鐘回1體)</option>
+            <option value="umamusume">賽馬娘 (100體力 / 10分鐘回1體)</option>
+          </select>
+        </div>
+
+        <hr class="border-slate-800/80 my-2">
+
+        <!-- 1. Game Name -->
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">1. 遊戲名稱 <span class="text-red-400">*</span></label>
+          <input type="text" id="gameName" required placeholder="例如：原神、崩鐵" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500">
+        </div>
+
+        <!-- Current Stamina -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">當前剩餘體力</label>
+            <input type="number" id="currentStamina" min="0" required placeholder="例如：45" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500">
+          </div>
+          <!-- 2. Max Stamina -->
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">2. 體力上限 <span class="text-red-400">*</span></label>
+            <input type="number" id="maxStamina" min="1" required placeholder="例如：200" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500">
+          </div>
+        </div>
+
+        <!-- 3. Recovery Mechanism -->
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">3. 回體機制 (幾分鐘恢復 1 點體力) <span class="text-red-400">*</span></label>
+          <div class="flex items-center gap-2">
+            <input type="number" id="recoveryRate" min="0.1" step="0.1" required placeholder="例如：6" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500">
+            <span class="text-xs text-slate-400 shrink-0">分鐘 / 1體</span>
+          </div>
+        </div>
+
+        <!-- 4. Notification Lead Time -->
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">4. 提早多久發出通知？ <span class="text-red-400">*</span></label>
+          <select id="notifyLeadTime" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
+            <option value="0">剛好滿體力時 (0 分鐘)</option>
+            <option value="15">提早 15 分鐘</option>
+            <option value="30" selected>提早 30 分鐘</option>
+            <option value="45">提早 45 分鐘</option>
+            <option value="60">提早 1 小時</option>
+            <option value="120">提早 2 小時</option>
+          </select>
+        </div>
+
+        <!-- Theme Color -->
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">卡片主題色</label>
+          <div class="flex gap-2" id="colorPickerContainer">
+            <button type="button" onclick="selectColor('blue')" data-color="blue" class="w-7 h-7 rounded-full bg-blue-500 border-2 border-white/80 ring-2 ring-blue-500/50"></button>
+            <button type="button" onclick="selectColor('indigo')" data-color="indigo" class="w-7 h-7 rounded-full bg-indigo-500 border-2 border-transparent hover:border-white/50"></button>
+            <button type="button" onclick="selectColor('emerald')" data-color="emerald" class="w-7 h-7 rounded-full bg-emerald-500 border-2 border-transparent hover:border-white/50"></button>
+            <button type="button" onclick="selectColor('amber')" data-color="amber" class="w-7 h-7 rounded-full bg-amber-500 border-2 border-transparent hover:border-white/50"></button>
+            <button type="button" onclick="selectColor('rose')" data-color="rose" class="w-7 h-7 rounded-full bg-rose-500 border-2 border-transparent hover:border-white/50"></button>
+            <button type="button" onclick="selectColor('purple')" data-color="purple" class="w-7 h-7 rounded-full bg-purple-500 border-2 border-transparent hover:border-white/50"></button>
+          </div>
+          <input type="hidden" id="themeColor" value="blue">
+        </div>
+
+        <!-- Buttons -->
+        <div class="flex gap-3 pt-4 border-t border-slate-800">
+          <button type="button" onclick="closeModal()" class="flex-1 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm font-medium transition">
+            取消
+          </button>
+          <button type="submit" class="flex-1 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition">
+            儲存遊戲
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Custom Alert Toast -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none bg-slate-900 border border-slate-700 text-slate-100 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3">
+    <i data-lucide="info" class="w-5 h-5 text-blue-400 shrink-0" id="toastIcon"></i>
+    <span id="toastMsg" class="text-sm font-medium">訊息</span>
+  </div>
+
+  <script>
+    // State management
+    let games = [];
+    let activeColor = 'blue';
+    let checkTimer = null;
+
+    // Preset Data
+    const PRESETS = {
+      genshin: { name: '原神', max: 200, rate: 8, color: 'amber' },
+      starrail: { name: '崩壞：星穹鐵道', max: 240, rate: 6, color: 'purple' },
+      zzz: { name: '絕區零', max: 240, rate: 6, color: 'indigo' },
+      bluearchive: { name: '蔚藍檔案', max: 240, rate: 6, color: 'blue' },
+      arknights: { name: '明日方舟', max: 135, rate: 6, color: 'emerald' },
+      fgo: { name: 'Fate/Grand Order', max: 142, rate: 5, color: 'rose' },
+      nikke: { name: '勝利女神：妮姬', max: 100, rate: 10, color: 'amber' },
+      umamusume: { name: '賽馬娘', max: 100, rate: 10, color: 'emerald' }
+    };
+
+    // Color maps for Tailwind styles
+    const COLOR_CLASSES = {
+      blue: { bg: 'bg-blue-500', border: 'border-blue-500/40', text: 'text-blue-400', ring: 'ring-blue-500' },
+      indigo: { bg: 'bg-indigo-500', border: 'border-indigo-500/40', text: 'text-indigo-400', ring: 'ring-indigo-500' },
+      emerald: { bg: 'bg-emerald-500', border: 'border-emerald-500/40', text: 'text-emerald-400', ring: 'ring-emerald-500' },
+      amber: { bg: 'bg-amber-500', border: 'border-amber-500/40', text: 'text-amber-400', ring: 'ring-amber-500' },
+      rose: { bg: 'bg-rose-500', border: 'border-rose-500/40', text: 'text-rose-400', ring: 'ring-rose-500' },
+      purple: { bg: 'bg-purple-500', border: 'border-purple-500/40', text: 'text-purple-400', ring: 'ring-purple-500' }
+    };
+
+    // Initialize application on page load
+    window.onload = function() {
+      loadGames();
+      updateNotificationUI();
+      renderGames();
+      
+      // Start main timer loop (updates every 1 sec)
+      checkTimer = setInterval(tick, 1000);
+
+      // Initialize icons
+      lucide.createIcons();
+    };
+
+    // Load from LocalStorage
+    function loadGames() {
+      const saved = localStorage.getItem('stamina_games');
+      if (saved) {
+        try {
+          games = JSON.parse(saved);
+        } catch (e) {
+          games = [];
+        }
+      }
+    }
+
+    // Save to LocalStorage
+    function saveGames() {
+      localStorage.setItem('stamina_games', JSON.stringify(games));
+    }
+
+    // Calculate exact current stamina based on timestamp
+    function getCalculatedStamina(game) {
+      const now = Date.now();
+      const elapsedSeconds = (now - game.lastUpdatedTimestamp) / 1000;
+      const secondsPerPoint = game.recoveryRateMins * 60;
+      
+      const gained = elapsedSeconds / secondsPerPoint;
+      const current = Math.min(game.maxStamina, game.currentStamina + gained);
+      return current;
+    }
+
+    // Calculate remaining time to max in seconds
+    function getTimeToMaxSeconds(game) {
+      const current = getCalculatedStamina(game);
+      const needed = game.maxStamina - current;
+      if (needed <= 0) return 0;
+      return needed * game.recoveryRateMins * 60;
+    }
+
+    // Main interval tick
+    function tick() {
+      renderGames();
+      checkNotifications();
+    }
+
+    // Request notification permission
+    function requestNotificationPermission() {
+      if (!("Notification" in window)) {
+        showToast("您的瀏覽器不支援桌面推播通知功能", "alert-circle");
+        return;
+      }
+
+      Notification.requestPermission().then(permission => {
+        updateNotificationUI();
+        if (permission === "granted") {
+          showToast("推播通知已順利啟用！", "check-circle");
+          playAlertSound();
+        } else if (permission === "denied") {
+          showToast("推播通知被拒絕，滿體時將僅能以視訊與音效提醒", "alert-triangle");
+        }
+      });
+    }
+
+    function updateNotificationUI() {
+      const btnText = document.getElementById('notificationText');
+      const icon = document.getElementById('bellIcon');
+      const alertBanner = document.getElementById('notificationAlertBanner');
+
+      if (!("Notification" in window)) {
+        btnText.innerText = "不支援通知";
+        return;
+      }
+
+      if (Notification.permission === "granted") {
+        btnText.innerText = "通知已開啟";
+        icon.setAttribute('data-lucide', 'bell');
+        alertBanner.classList.add('hidden');
+      } else if (Notification.permission === "denied") {
+        btnText.innerText = "通知已封鎖";
+        icon.setAttribute('data-lucide', 'bell-off');
+        alertBanner.classList.remove('hidden');
+      } else {
+        btnText.innerText = "啟用推播通知";
+        icon.setAttribute('data-lucide', 'bell');
+        alertBanner.classList.remove('hidden');
+      }
+      lucide.createIcons();
+    }
+
+    // Play Alert Sound using Web Audio API (No external file needed)
+    function playAlertSound() {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        const ctx = new AudioContext();
+
+        // Dual Tone Chime
+        const playNote = (freq, time, duration) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + time);
+          
+          gain.gain.setValueAtTime(0.3, ctx.currentTime + time);
+          gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + time + duration);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(ctx.currentTime + time);
+          osc.stop(ctx.currentTime + time + duration);
+        };
+
+        playNote(523.25, 0, 0.2); // C5
+        playNote(659.25, 0.15, 0.3); // E5
+        playNote(783.99, 0.3, 0.4); // G5
+      } catch (e) {
+        console.error("Audio playback error:", e);
+      }
+    }
+
+    // Check if any game hit notification threshold
+    function checkNotifications() {
+      const now = Date.now();
+
+      games.forEach(game => {
+        const timeToMaxSec = getTimeToMaxSeconds(game);
+        const leadSec = (game.notifyLeadTimeMins || 0) * 60;
+
+        // 1. Warning Lead-time Notification
+        if (leadSec > 0 && timeToMaxSec <= leadSec && timeToMaxSec > 0 && !game.notifiedWarning) {
+          game.notifiedWarning = true;
+          saveGames();
+
+          const minsLeft = Math.ceil(timeToMaxSec / 60);
+          sendNotification(
+            `⚡ ${game.name} 體力即將滿額！`,
+            `目前體力快滿了，預計在 ${minsLeft} 分鐘後達到上限 (${game.maxStamina} 點)！`
+          );
+        }
+
+        // 2. Full Stamina Notification
+        if (timeToMaxSec === 0 && !game.notifiedFull) {
+          game.notifiedFull = true;
+          saveGames();
+
+          sendNotification(
+            `🚨 ${game.name} 體力已經完全額滿！`,
+            `當前體力已達到上限 (${game.maxStamina}/${game.maxStamina})，快上線消耗體力吧！`
+          );
+        }
+      });
+    }
+
+    function sendNotification(title, body) {
+      playAlertSound();
+
+      if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(title, {
+          body: body,
+          icon: 'https://cdn-icons-png.flaticon.com/512/3082/3082060.png'
+        });
+      } else {
+        showToast(`${title} - ${body}`, 'bell');
+      }
+    }
+
+    function renderGames() {
+      const grid = document.getElementById('gamesGrid');
+      const emptyState = document.getElementById('emptyState');
+
+      if (games.length === 0) {
+        grid.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        emptyState.classList.add('flex');
+        updateStats();
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+      emptyState.classList.remove('flex');
+
+      let html = '';
+      let earliestFullTimestamp = Infinity;
+      let earliestGameName = '';
+
+      games.forEach((game, index) => {
+        const current = getCalculatedStamina(game);
+        const currentInt = Math.floor(current);
+        const percent = Math.min(100, Math.floor((current / game.maxStamina) * 100));
+        const timeToMaxSec = getTimeToMaxSeconds(game);
+        const theme = COLOR_CLASSES[game.themeColor] || COLOR_CLASSES.blue;
+
+        // Calculate Target Time
+        let timeStr = '';
+        let fullAtTimeStr = '';
+        if (timeToMaxSec <= 0) {
+          timeStr = '<span class="text-red-400 font-bold">體力已溢出！</span>';
+          fullAtTimeStr = '已完全加滿';
+        } else {
+          const hrs = Math.floor(timeToMaxSec / 3600);
+          const mins = Math.floor((timeToMaxSec % 3600) / 60);
+          const secs = Math.floor(timeToMaxSec % 60);
+          
+          const pad = n => String(n).padStart(2, '0');
+          timeStr = `${hrs > 0 ? hrs + '小時 ' : ''}${pad(mins)}分 ${pad(secs)}秒`;
+
+          const targetDate = new Date(Date.now() + timeToMaxSec * 1000);
+          const isToday = new Date().toDateString() === targetDate.toDateString();
+          const dayLabel = isToday ? '今天' : '明天';
+          fullAtTimeStr = `${dayLabel} ${pad(targetDate.getHours())}:${pad(targetDate.getMinutes())}`;
+
+          if (targetDate.getTime() < earliestFullTimestamp) {
+            earliestFullTimestamp = targetDate.getTime();
+            earliestGameName = `${game.name} (${fullAtTimeStr})`;
+          }
+        }
+
+        // Progress bar color based on fullness
+        let barBg = 'bg-blue-500';
+        if (percent >= 100) barBg = 'bg-red-500 animate-pulse';
+        else if (percent >= 85) barBg = 'bg-amber-500';
+
+        html += `
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-lg relative flex flex-col justify-between hover:border-slate-700 transition">
+            
+            <!-- Header -->
+            <div>
+              <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                  <div class="w-3 h-3 rounded-full ${theme.bg}"></div>
+                  <h3 class="font-bold text-base text-slate-100 truncate max-w-[170px]">${escapeHtml(game.name)}</h3>
+                </div>
+                <div class="flex items-center gap-1">
+                  <button onclick="openEditModal(${index})" class="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition" title="編輯">
+                    <i data-lucide="edit-3" class="w-4 h-4"></i>
+                  </button>
+                  <button onclick="deleteGame(${index})" class="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition" title="刪除">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Stamina Gauge & Values -->
+              <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 mb-4">
+                <div class="flex justify-between items-baseline mb-2">
+                  <span class="text-xs text-slate-400">體力狀態</span>
+                  <div>
+                    <span class="text-2xl font-extrabold ${percent >= 100 ? 'text-red-400' : 'text-slate-100'}">${currentInt}</span>
+                    <span class="text-xs text-slate-400">/ ${game.maxStamina}</span>
+                  </div>
+                </div>
+
+                <!-- Progress Bar -->
+                <div class="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden mb-2">
+                  <div class="${barBg} h-full transition-all duration-500" style="width: ${percent}%"></div>
+                </div>
+
+                <!-- Rate info & Percentage -->
+                <div class="flex justify-between items-center text-[11px] text-slate-400">
+                  <span>${game.recoveryRateMins} 分鐘/1體</span>
+                  <span>${percent}%</span>
+                </div>
+              </div>
+
+              <!-- Timers & Alert Info -->
+              <div class="space-y-2 mb-4 text-xs">
+                <div class="flex justify-between items-center py-1 border-b border-slate-800/60">
+                  <span class="text-slate-400 flex items-center gap-1.5">
+                    <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
+                    距滿體倒數
+                  </span>
+                  <span class="font-mono font-medium text-slate-200">${timeStr}</span>
+                </div>
+
+                <div class="flex justify-between items-center py-1 border-b border-slate-800/60">
+                  <span class="text-slate-400 flex items-center gap-1.5">
+                    <i data-lucide="calendar" class="w-3.5 h-3.5 text-slate-400"></i>
+                    預計滿體時間
+                  </span>
+                  <span class="font-medium text-emerald-400">${fullAtTimeStr}</span>
+                </div>
+
+                <div class="flex justify-between items-center py-1">
+                  <span class="text-slate-400 flex items-center gap-1.5">
+                    <i data-lucide="bell" class="w-3.5 h-3.5 text-slate-400"></i>
+                    預警提醒
+                  </span>
+                  <span class="text-slate-300">
+                    ${game.notifyLeadTimeMins == 0 ? '當前滿體時' : '提早 ' + game.notifyLeadTimeMins + ' 分鐘'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Action Buttons -->
+            <div class="pt-2 border-t border-slate-800/80">
+              <div class="text-[11px] font-medium text-slate-400 mb-1.5">快速消耗 / 設定體力</div>
+              <div class="grid grid-cols-4 gap-1.5">
+                <button onclick="adjustStamina(${index}, -20)" class="py-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-300 rounded text-xs font-semibold transition">-20</button>
+                <button onclick="adjustStamina(${index}, -30)" class="py-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-300 rounded text-xs font-semibold transition">-30</button>
+                <button onclick="adjustStamina(${index}, -40)" class="py-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-300 rounded text-xs font-semibold transition">-40</button>
+                <button onclick="adjustStamina(${index}, -60)" class="py-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-300 rounded text-xs font-semibold transition">-60</button>
+              </div>
+              <div class="grid grid-cols-2 gap-1.5 mt-1.5">
+                <button onclick="setStaminaTo(${index}, 0)" class="py-1 bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30 rounded text-xs font-medium transition">清空 (0體)</button>
+                <button onclick="setStaminaTo(${index}, ${game.maxStamina})" class="py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded text-xs font-medium transition">填滿 (${game.maxStamina})</button>
+              </div>
+            </div>
+
+          </div>
+        `;
+      });
+
+      grid.innerHTML = html;
+      lucide.createIcons();
+      updateStats(earliestGameName);
+    }
+
+    // Update Statistics Bar
+    function updateStats(nextFullText = '') {
+      document.getElementById('statTotalGames').innerText = games.length;
+
+      let warningCount = 0;
+      let fullCount = 0;
+
+      games.forEach(g => {
+        const timeSec = getTimeToMaxSeconds(g);
+        if (timeSec === 0) fullCount++;
+        else if (timeSec <= 1800) warningCount++; // < 30 mins
+      });
+
+      document.getElementById('statWarningGames').innerText = warningCount;
+      document.getElementById('statFullGames').innerText = fullCount;
+      document.getElementById('statNextFull').innerText = nextFullText || (games.length > 0 ? '全部已滿體' : '無');
+    }
+
+    // Adjust stamina relative to calculated value
+    function adjustStamina(index, delta) {
+      const game = games[index];
+      const current = getCalculatedStamina(game);
+      const newStamina = Math.max(0, Math.min(game.maxStamina, Math.floor(current + delta)));
+      
+      game.currentStamina = newStamina;
+      game.lastUpdatedTimestamp = Date.now();
+      
+      // Reset alert triggers if user reduced stamina
+      if (delta < 0) {
+        game.notifiedWarning = false;
+        game.notifiedFull = false;
+      }
+
+      saveGames();
+      renderGames();
+      showToast(`已更新 ${game.name} 體力為 ${newStamina}`, 'check');
+    }
+
+    // Set stamina directly
+    function setStaminaTo(index, val) {
+      const game = games[index];
+      game.currentStamina = val;
+      game.lastUpdatedTimestamp = Date.now();
+      
+      if (val < game.maxStamina) {
+        game.notifiedWarning = false;
+        game.notifiedFull = false;
+      }
+
+      saveGames();
+      renderGames();
+      showToast(`已更新 ${game.name} 體力為 ${val}`, 'check');
+    }
+
+    // Delete game
+    function deleteGame(index) {
+      const gameName = games[index].name;
+      games.splice(index, 1);
+      saveGames();
+      renderGames();
+      showToast(`已移除 ${gameName}`, 'trash');
+    }
+
+    // Modal Handlers
+    function openAddModal() {
+      document.getElementById('modalTitle').innerText = '新增手遊體力設定';
+      document.getElementById('gameForm').reset();
+      document.getElementById('gameId').value = '';
+      document.getElementById('themeColor').value = 'blue';
+      selectColor('blue');
+      document.getElementById('gameModal').classList.remove('hidden');
+    }
+
+    function openEditModal(index) {
+      const g = games[index];
+      document.getElementById('modalTitle').innerText = '編輯遊戲設定';
+      document.getElementById('gameId').value = index;
+      document.getElementById('gameName').value = g.name;
+      
+      const current = Math.floor(getCalculatedStamina(g));
+      document.getElementById('currentStamina').value = current;
+      document.getElementById('maxStamina').value = g.maxStamina;
+      document.getElementById('recoveryRate').value = g.recoveryRateMins;
+      document.getElementById('notifyLeadTime').value = g.notifyLeadTimeMins || 30;
+      document.getElementById('themeColor').value = g.themeColor || 'blue';
+      
+      selectColor(g.themeColor || 'blue');
+      document.getElementById('gameModal').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('gameModal').classList.add('hidden');
+    }
+
+    // Apply presets
+    function applyPreset(key) {
+      if (!key || !PRESETS[key]) return;
+      const p = PRESETS[key];
+      document.getElementById('gameName').value = p.name;
+      document.getElementById('maxStamina').value = p.max;
+      document.getElementById('recoveryRate').value = p.rate;
+      document.getElementById('currentStamina').value = Math.floor(p.max * 0.3); // default fill 30%
+      selectColor(p.color);
+    }
+
+    // Select color theme
+    function selectColor(color) {
+      activeColor = color;
+      document.getElementById('themeColor').value = color;
+      
+      const buttons = document.querySelectorAll('#colorPickerContainer button');
+      buttons.forEach(btn => {
+        if (btn.dataset.color === color) {
+          btn.className = `w-7 h-7 rounded-full bg-${color}-500 border-2 border-white ring-2 ring-${color}-500/50`;
+        } else {
+          btn.className = `w-7 h-7 rounded-full bg-${btn.dataset.color}-500 border-2 border-transparent hover:border-white/50`;
+        }
+      });
+    }
+
+    // Submit Game Form
+    function handleFormSubmit(e) {
+      e.preventDefault();
+
+      const editIndex = document.getElementById('gameId').value;
+      const name = document.getElementById('gameName').value.trim();
+      const currentVal = parseFloat(document.getElementById('currentStamina').value) || 0;
+      const maxVal = parseInt(document.getElementById('maxStamina').value, 10);
+      const rateVal = parseFloat(document.getElementById('recoveryRate').value);
+      const leadTimeVal = parseInt(document.getElementById('notifyLeadTime').value, 10);
+      const themeColor = document.getElementById('themeColor').value;
+
+      if (!name || maxVal <= 0 || rateVal <= 0) {
+        showToast("請填寫正確的設定欄位", "alert-triangle");
+        return;
+      }
+
+      const gameData = {
+        name,
+        currentStamina: Math.min(currentVal, maxVal),
+        maxStamina: maxVal,
+        recoveryRateMins: rateVal,
+        notifyLeadTimeMins: leadTimeVal,
+        themeColor,
+        lastUpdatedTimestamp: Date.now(),
+        notifiedWarning: false,
+        notifiedFull: false
+      };
+
+      if (editIndex !== "") {
+        // Edit existing
+        games[editIndex] = gameData;
+        showToast(`已更新 ${name} 設定`, 'check');
+      } else {
+        // Add new
+        games.push(gameData);
+        showToast(`已新增 ${name}`, 'check');
+      }
+
+      saveGames();
+      renderGames();
+      closeModal();
+    }
+
+    // Toast Alert Helper
+    function showToast(msg, iconName = 'info') {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toastMsg');
+      const toastIcon = document.getElementById('toastIcon');
+
+      toastMsg.innerText = msg;
+      toastIcon.setAttribute('data-lucide', iconName);
+      lucide.createIcons();
+
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 3000);
+    }
+
+    // Escape HTML string to prevent XSS
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>
