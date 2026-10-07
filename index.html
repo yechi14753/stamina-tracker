@@ -184,13 +184,11 @@
           <select id="presetSelect" onchange="applyPreset(this.value)" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
             <option value="">-- 選擇預設範本 (可自動帶入參數) --</option>
             <option value="genshin">原神 (200體力 / 8分鐘回1體)</option>
-            <option value="starrail">崩壞：星穹鐵道 (240體力 / 6分鐘回1體)</option>
+            <option value="starrail">崩壞：星穹鐵道 (300體力 / 6分鐘回1體)</option>
             <option value="zzz">絕區零 (240體力 / 6分鐘回1體)</option>
-            <option value="bluearchive">蔚藍檔案 (240體力 / 6分鐘回1體)</option>
-            <option value="arknights">明日方舟 (135體力 / 6分鐘回1體)</option>
-            <option value="fgo">Fate/Grand Order (142體力 / 5分鐘回1體)</option>
-            <option value="nikke">勝利女神：妮姬 (100體力 / 10分鐘回1體)</option>
-            <option value="umamusume">賽馬娘 (100體力 / 10分鐘回1體)</option>
+            <option value="wuthering">鳴潮 (240體力 / 6分鐘回1體)</option>
+            <option value="arknights">明日方舟 (180體力 / 6分鐘回1體)</option>
+            <option value="endfield">明日方舟：終末地 (360體力 / 7.2分鐘回1體)</option>
           </select>
         </div>
 
@@ -279,13 +277,11 @@
     // Preset Data
     const PRESETS = {
       genshin: { name: '原神', max: 200, rate: 8, color: 'amber' },
-      starrail: { name: '崩壞：星穹鐵道', max: 240, rate: 6, color: 'purple' },
+      starrail: { name: '崩壞：星穹鐵道', max: 300, rate: 6, color: 'purple' },
       zzz: { name: '絕區零', max: 240, rate: 6, color: 'indigo' },
-      bluearchive: { name: '蔚藍檔案', max: 240, rate: 6, color: 'blue' },
-      arknights: { name: '明日方舟', max: 135, rate: 6, color: 'emerald' },
-      fgo: { name: 'Fate/Grand Order', max: 142, rate: 5, color: 'rose' },
-      nikke: { name: '勝利女神：妮姬', max: 100, rate: 10, color: 'amber' },
-      umamusume: { name: '賽馬娘', max: 100, rate: 10, color: 'emerald' }
+      wuthering: { name: '鳴潮', max: 240, rate: 6, color: 'emerald' },
+      arknights: { name: '明日方舟', max: 180, rate: 6, color: 'rose' },
+      endfield: { name: '明日方舟：終末地', max: 360, rate: 7.2, color: 'blue' }
     };
 
     // Color maps for Tailwind styles
@@ -721,7 +717,7 @@
       showToast(`已扣除 ${game.name} 體力 ${Math.abs(delta)} 點`, 'check');
     }
 
-    // Set stamina directly
+    // Set stamina directly while preserving sub-point countdown phase
     function setStaminaTo(index, val) {
       const game = games[index];
       const now = Date.now();
@@ -732,7 +728,14 @@
       if (val >= game.maxStamina) {
         game.fullTimestamp = now;
       } else {
-        game.fullTimestamp = now + (game.maxStamina - val) * rateMs;
+        // 保留原先距離 +1 體力的剩餘毫秒數 (Phase Preservation)
+        let phaseMs = rateMs;
+        if (game.fullTimestamp && game.fullTimestamp > now) {
+          phaseMs = (game.fullTimestamp - now) % rateMs;
+          if (phaseMs <= 0) phaseMs = rateMs;
+        }
+        const missingUnits = game.maxStamina - val;
+        game.fullTimestamp = now + (missingUnits - 1) * rateMs + phaseMs;
       }
 
       game.currentStamina = val;
@@ -831,17 +834,40 @@
         return;
       }
 
+      const now = Date.now();
+      const clampedCurrent = Math.min(currentVal, maxVal);
+      const rateMs = rateVal * 60 * 1000;
+      let fullTimestamp = now;
+
+      if (clampedCurrent < maxVal) {
+        let phaseMs = rateMs;
+
+        // 如果是編輯現有遊戲，計算原有的倒數比例以保留 +1 體力倒數進度
+        if (editIndex !== "" && games[editIndex]) {
+          const oldGame = games[editIndex];
+          const oldRateMs = (oldGame.recoveryRateMins || rateVal) * 60 * 1000;
+          if (oldGame.fullTimestamp && oldGame.fullTimestamp > now) {
+            const oldPhase = (oldGame.fullTimestamp - now) % oldRateMs;
+            if (oldPhase > 0) {
+              const phaseRatio = oldPhase / oldRateMs;
+              phaseMs = phaseRatio * rateMs;
+            }
+          }
+        }
+
+        const missingUnits = maxVal - clampedCurrent;
+        fullTimestamp = now + (missingUnits - 1) * rateMs + phaseMs;
+      }
+
       const gameData = {
         name,
-        currentStamina: Math.min(currentVal, maxVal),
+        currentStamina: clampedCurrent,
         maxStamina: maxVal,
         recoveryRateMins: rateVal,
         notifyLeadTimeMins: leadTimeVal,
         themeColor,
-        lastUpdatedTimestamp: Date.now(),
-        fullTimestamp: currentVal >= maxVal 
-          ? Date.now() 
-          : Date.now() + (maxVal - Math.min(currentVal, maxVal)) * rateVal * 60 * 1000,
+        lastUpdatedTimestamp: now,
+        fullTimestamp: fullTimestamp,
         notifiedWarning: false,
         notifiedFull: false
       };
