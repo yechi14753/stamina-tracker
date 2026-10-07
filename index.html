@@ -103,7 +103,7 @@
           <i data-lucide="alert-triangle" class="w-5 h-5"></i>
         </div>
         <div>
-          <div class="text-xs text-slate-400">即將滿體 (<30分鐘)</div>
+          <div class="text-xs text-slate-400">即將滿體 (&lt;30分鐘)</div>
           <div id="statWarningGames" class="text-lg font-bold text-amber-400">0</div>
         </div>
       </div>
@@ -138,7 +138,7 @@
         </p>
       </div>
       <button onclick="requestNotificationPermission()" class="px-3 py-1.5 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 rounded-lg text-xs font-medium shrink-0">
-        立刻允許
+        區域允許
       </button>
     </div>
 
@@ -328,23 +328,41 @@
       localStorage.setItem('stamina_games', JSON.stringify(games));
     }
 
-    // Calculate exact current stamina based on timestamp
+    // Calculate exact current stamina based on timestamp & fullTimestamp
     function getCalculatedStamina(game) {
       const now = Date.now();
-      const elapsedSeconds = (now - game.lastUpdatedTimestamp) / 1000;
-      const secondsPerPoint = game.recoveryRateMins * 60;
+      const rateMs = game.recoveryRateMins * 60 * 1000;
       
-      const gained = elapsedSeconds / secondsPerPoint;
-      const current = Math.min(game.maxStamina, game.currentStamina + gained);
-      return current;
+      // Auto-migrate old data format if fullTimestamp is missing
+      if (!game.fullTimestamp) {
+        const missing = game.maxStamina - (game.currentStamina || 0);
+        game.fullTimestamp = (game.lastUpdatedTimestamp || now) + missing * rateMs;
+      }
+
+      if (now >= game.fullTimestamp) {
+        return game.maxStamina;
+      }
+
+      const remainingMs = game.fullTimestamp - now;
+      const missingStamina = remainingMs / rateMs;
+      return Math.max(0, game.maxStamina - missingStamina);
     }
 
     // Calculate remaining time to max in seconds
     function getTimeToMaxSeconds(game) {
-      const current = getCalculatedStamina(game);
-      const needed = game.maxStamina - current;
-      if (needed <= 0) return 0;
-      return needed * game.recoveryRateMins * 60;
+      const now = Date.now();
+      if (!game.fullTimestamp) getCalculatedStamina(game);
+      const remainingSec = (game.fullTimestamp - now) / 1000;
+      return Math.max(0, remainingSec);
+    }
+
+    // Calculate remaining time to next +1 stamina point in seconds
+    function getTimeToNextPointSeconds(game) {
+      const timeToMaxSec = getTimeToMaxSeconds(game);
+      if (timeToMaxSec <= 0) return 0;
+      const rateSec = game.recoveryRateMins * 60;
+      let secToNext = timeToMaxSec % rateSec;
+      return secToNext === 0 ? rateSec : secToNext;
     }
 
     // Main interval tick
@@ -377,22 +395,22 @@
       const alertBanner = document.getElementById('notificationAlertBanner');
 
       if (!("Notification" in window)) {
-        btnText.innerText = "不支援通知";
+        if (btnText) btnText.innerText = "不支援通知";
         return;
       }
 
       if (Notification.permission === "granted") {
-        btnText.innerText = "通知已開啟";
-        icon.setAttribute('data-lucide', 'bell');
-        alertBanner.classList.add('hidden');
+        if (btnText) btnText.innerText = "通知已開啟";
+        if (icon) icon.setAttribute('data-lucide', 'bell');
+        if (alertBanner) alertBanner.classList.add('hidden');
       } else if (Notification.permission === "denied") {
-        btnText.innerText = "通知已封鎖";
-        icon.setAttribute('data-lucide', 'bell-off');
-        alertBanner.classList.remove('hidden');
+        if (btnText) btnText.innerText = "通知已封鎖";
+        if (icon) icon.setAttribute('data-lucide', 'bell-off');
+        if (alertBanner) alertBanner.classList.remove('hidden');
       } else {
-        btnText.innerText = "啟用推播通知";
-        icon.setAttribute('data-lucide', 'bell');
-        alertBanner.classList.remove('hidden');
+        if (btnText) btnText.innerText = "啟用推播通知";
+        if (icon) icon.setAttribute('data-lucide', 'bell');
+        if (alertBanner) alertBanner.classList.remove('hidden');
       }
       lucide.createIcons();
     }
@@ -431,8 +449,6 @@
 
     // Check if any game hit notification threshold
     function checkNotifications() {
-      const now = Date.now();
-
       games.forEach(game => {
         const timeToMaxSec = getTimeToMaxSeconds(game);
         const leadSec = (game.notifyLeadTimeMins || 0) * 60;
@@ -475,15 +491,53 @@
       }
     }
 
+    function updateStats() {
+      const total = games.length;
+      let warningCount = 0;
+      let fullCount = 0;
+      let earliestFullTimestamp = Infinity;
+      let earliestGameName = '';
+
+      games.forEach(game => {
+        const timeToMaxSec = getTimeToMaxSeconds(game);
+        if (timeToMaxSec <= 0) {
+          fullCount++;
+        } else {
+          if (timeToMaxSec <= 1800) { // < 30 mins
+            warningCount++;
+          }
+          if (game.fullTimestamp < earliestFullTimestamp) {
+            earliestFullTimestamp = game.fullTimestamp;
+            const targetDate = new Date(game.fullTimestamp);
+            const pad = n => String(n).padStart(2, '0');
+            const isToday = new Date().toDateString() === targetDate.toDateString();
+            const dayLabel = isToday ? '今天' : '明天';
+            earliestGameName = `${game.name} (${dayLabel} ${pad(targetDate.getHours())}:${pad(targetDate.getMinutes())})`;
+          }
+        }
+      });
+
+      const totalEl = document.getElementById('statTotalGames');
+      const warningEl = document.getElementById('statWarningGames');
+      const fullEl = document.getElementById('statFullGames');
+      const nextFullEl = document.getElementById('statNextFull');
+
+      if (totalEl) totalEl.innerText = total;
+      if (warningEl) warningEl.innerText = warningCount;
+      if (fullEl) fullEl.innerText = fullCount;
+      if (nextFullEl) nextFullEl.innerText = earliestGameName || (fullCount > 0 && total === fullCount ? '全部已滿體' : '無');
+    }
+
     function renderGames() {
       const grid = document.getElementById('gamesGrid');
       const emptyState = document.getElementById('emptyState');
+
+      updateStats();
 
       if (games.length === 0) {
         grid.innerHTML = '';
         emptyState.classList.remove('hidden');
         emptyState.classList.add('flex');
-        updateStats();
         return;
       }
 
@@ -491,8 +545,6 @@
       emptyState.classList.remove('flex');
 
       let html = '';
-      let earliestFullTimestamp = Infinity;
-      let earliestGameName = '';
 
       games.forEach((game, index) => {
         const current = getCalculatedStamina(game);
@@ -504,9 +556,12 @@
         // Calculate Target Time
         let timeStr = '';
         let fullAtTimeStr = '';
+        let nextPointStr = '';
+
         if (timeToMaxSec <= 0) {
           timeStr = '<span class="text-red-400 font-bold">體力已溢出！</span>';
           fullAtTimeStr = '已完全加滿';
+          nextPointStr = '<span class="text-slate-500">已滿</span>';
         } else {
           const hrs = Math.floor(timeToMaxSec / 3600);
           const mins = Math.floor((timeToMaxSec % 3600) / 60);
@@ -515,15 +570,16 @@
           const pad = n => String(n).padStart(2, '0');
           timeStr = `${hrs > 0 ? hrs + '小時 ' : ''}${pad(mins)}分 ${pad(secs)}秒`;
 
+          // Calculate time left for next single stamina point (+1)
+          const nextSec = getTimeToNextPointSeconds(game);
+          const nextMins = Math.floor(nextSec / 60);
+          const nextSecs = Math.floor(nextSec % 60);
+          nextPointStr = `${pad(nextMins)}分 ${pad(nextSecs)}秒`;
+
           const targetDate = new Date(Date.now() + timeToMaxSec * 1000);
           const isToday = new Date().toDateString() === targetDate.toDateString();
           const dayLabel = isToday ? '今天' : '明天';
           fullAtTimeStr = `${dayLabel} ${pad(targetDate.getHours())}:${pad(targetDate.getMinutes())}`;
-
-          if (targetDate.getTime() < earliestFullTimestamp) {
-            earliestFullTimestamp = targetDate.getTime();
-            earliestGameName = `${game.name} (${fullAtTimeStr})`;
-          }
         }
 
         // Progress bar color based on fullness
@@ -577,6 +633,14 @@
               <div class="space-y-2 mb-4 text-xs">
                 <div class="flex justify-between items-center py-1 border-b border-slate-800/60">
                   <span class="text-slate-400 flex items-center gap-1.5">
+                    <i data-lucide="timer" class="w-3.5 h-3.5 text-blue-400"></i>
+                    距 +1 體力倒數
+                  </span>
+                  <span class="font-mono font-semibold text-blue-400">${nextPointStr}</span>
+                </div>
+
+                <div class="flex justify-between items-center py-1 border-b border-slate-800/60">
+                  <span class="text-slate-400 flex items-center gap-1.5">
                     <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
                     距滿體倒數
                   </span>
@@ -624,53 +688,56 @@
 
       grid.innerHTML = html;
       lucide.createIcons();
-      updateStats(earliestGameName);
     }
 
-    // Update Statistics Bar
-    function updateStats(nextFullText = '') {
-      document.getElementById('statTotalGames').innerText = games.length;
-
-      let warningCount = 0;
-      let fullCount = 0;
-
-      games.forEach(g => {
-        const timeSec = getTimeToMaxSeconds(g);
-        if (timeSec === 0) fullCount++;
-        else if (timeSec <= 1800) warningCount++; // < 30 mins
-      });
-
-      document.getElementById('statWarningGames').innerText = warningCount;
-      document.getElementById('statFullGames').innerText = fullCount;
-      document.getElementById('statNextFull').innerText = nextFullText || (games.length > 0 ? '全部已滿體' : '無');
-    }
-
-    // Adjust stamina relative to calculated value
+    // Adjust stamina relative to calculated value without interrupting next-point countdown
     function adjustStamina(index, delta) {
       const game = games[index];
+      const now = Date.now();
       const current = getCalculatedStamina(game);
-      const newStamina = Math.max(0, Math.min(game.maxStamina, Math.floor(current + delta)));
-      
-      game.currentStamina = newStamina;
-      game.lastUpdatedTimestamp = Date.now();
-      
-      // Reset alert triggers if user reduced stamina
+      const rateMs = game.recoveryRateMins * 60 * 1000;
+
       if (delta < 0) {
+        const spendAmount = Math.abs(delta);
+        if (current >= game.maxStamina) {
+          // Was FULL! Restart tick countdown from NOW
+          const newStamina = Math.max(0, game.maxStamina - spendAmount);
+          game.fullTimestamp = now + (game.maxStamina - newStamina) * rateMs;
+        } else {
+          // Was NOT FULL! Maintain exact phase of next +1 point countdown
+          game.fullTimestamp += spendAmount * rateMs;
+        }
         game.notifiedWarning = false;
         game.notifiedFull = false;
+      } else if (delta > 0) {
+        game.fullTimestamp = Math.max(now, game.fullTimestamp - delta * rateMs);
       }
+
+      game.currentStamina = getCalculatedStamina(game);
+      game.lastUpdatedTimestamp = now;
 
       saveGames();
       renderGames();
-      showToast(`已更新 ${game.name} 體力為 ${newStamina}`, 'check');
+      showToast(`已扣除 ${game.name} 體力 ${Math.abs(delta)} 點`, 'check');
     }
 
     // Set stamina directly
     function setStaminaTo(index, val) {
       const game = games[index];
+      const now = Date.now();
+      const rateMs = game.recoveryRateMins * 60 * 1000;
+
+      val = Math.max(0, Math.min(game.maxStamina, val));
+
+      if (val >= game.maxStamina) {
+        game.fullTimestamp = now;
+      } else {
+        game.fullTimestamp = now + (game.maxStamina - val) * rateMs;
+      }
+
       game.currentStamina = val;
-      game.lastUpdatedTimestamp = Date.now();
-      
+      game.lastUpdatedTimestamp = now;
+
       if (val < game.maxStamina) {
         game.notifiedWarning = false;
         game.notifiedFull = false;
@@ -772,6 +839,9 @@
         notifyLeadTimeMins: leadTimeVal,
         themeColor,
         lastUpdatedTimestamp: Date.now(),
+        fullTimestamp: currentVal >= maxVal 
+          ? Date.now() 
+          : Date.now() + (maxVal - Math.min(currentVal, maxVal)) * rateVal * 60 * 1000,
         notifiedWarning: false,
         notifiedFull: false
       };
@@ -796,6 +866,8 @@
       const toast = document.getElementById('toast');
       const toastMsg = document.getElementById('toastMsg');
       const toastIcon = document.getElementById('toastIcon');
+
+      if (!toast || !toastMsg || !toastIcon) return;
 
       toastMsg.innerText = msg;
       toastIcon.setAttribute('data-lucide', iconName);
