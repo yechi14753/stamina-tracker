@@ -4,13 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>手遊體力提醒儀表板</title>
-  
-  <!-- PWA Meta Tags for iOS / Android Home Screen -->
-  <meta name="mobile-web-app-capable" content="yes">
+
+  <!-- PWA Meta Tags for iOS & Android -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="體力提醒助手">
-  
+  <meta name="apple-mobile-web-app-title" content="體力提醒">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3082/3082060.png">
+
+  <!-- Inline Web App Manifest -->
+  <link rel="manifest" href='data:application/manifest+json,{"name":"手遊體力提醒助手","short_name":"體力提醒","start_url":".","display":"standalone","background_color":"#020617","theme_color":"#0f172a","icons":[{"src":"https://cdn-icons-png.flaticon.com/512/3082/3082060.png","sizes":"512x512","type":"image/png"}]}'>
+
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
@@ -37,6 +40,7 @@
     body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
+    /* Custom scrollbar */
     ::-webkit-scrollbar {
       width: 8px;
     }
@@ -65,7 +69,7 @@
           <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">
             手遊體力提醒助手
           </h1>
-          <p class="text-xs text-slate-400">多款遊戲體力倒數與行事曆警報同步</p>
+          <p class="text-xs text-slate-400">多款遊戲體力倒數與溢出預警通知</p>
         </div>
       </div>
 
@@ -74,6 +78,11 @@
         <button id="notificationBtn" onclick="requestNotificationPermission()" class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 transition">
           <i data-lucide="bell" class="w-4 h-4" id="bellIcon"></i>
           <span id="notificationText">啟用推播通知</span>
+        </button>
+
+        <!-- Mobile Guide Modal Open Button -->
+        <button onclick="openMobileGuide()" class="p-2 rounded-lg text-slate-400 border border-slate-800 bg-slate-900 hover:text-blue-400 hover:bg-slate-800 transition" title="手機推播與主畫面設定說明">
+          <i data-lucide="smartphone" class="w-4 h-4"></i>
         </button>
 
         <!-- Test Audio Button -->
@@ -135,26 +144,29 @@
       </div>
     </div>
 
-    <!-- Mobile Notification Instructions Banner -->
-    <div id="pwaBanner" class="mb-6 bg-slate-900 border border-indigo-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <i data-lucide="smartphone" class="w-5 h-5 text-indigo-400 shrink-0"></i>
+    <!-- Mobile Notification Banner Tip -->
+    <div id="mobileTipBanner" class="mb-6 bg-slate-900 border border-blue-500/30 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div class="flex items-start sm:items-center gap-3">
+        <i data-lucide="smartphone" class="w-5 h-5 text-blue-400 shrink-0 mt-0.5 sm:mt-0"></i>
         <p class="text-xs sm:text-sm text-slate-300">
-          💡 <strong class="text-indigo-300">手機跳通知建議</strong>：點擊瀏覽器選單將此網頁<strong class="text-white">「新增至主畫面」</strong>，或直接使用下方遊戲卡片的<strong class="text-white">「📅 加到行事曆」</strong>功能！
+          <strong class="text-blue-300">手機上如何接收提醒？</strong> 可以點擊卡片上的「<span class="text-amber-300">加到行事曆</span>」進行 100% 準時的手機鬧鐘提醒；或將網頁「<span class="text-blue-300">加入主畫面</span>」獲取推播通知！
         </p>
       </div>
+      <button onclick="openMobileGuide()" class="px-3 py-1.5 bg-blue-600/20 text-blue-300 hover:bg-blue-600/30 border border-blue-500/40 rounded-lg text-xs font-medium shrink-0 self-end sm:self-auto">
+        設定說明
+      </button>
     </div>
 
-    <!-- Notification Permission Alert -->
+    <!-- Notification Permission Alert (Shown if denied or default) -->
     <div id="notificationAlertBanner" class="hidden mb-6 bg-slate-900 border border-amber-500/30 rounded-xl p-4 flex items-center justify-between gap-4">
       <div class="flex items-center gap-3">
         <i data-lucide="bell-off" class="w-5 h-5 text-amber-400 shrink-0"></i>
         <p class="text-xs sm:text-sm text-slate-300">
-          點擊「允許推播」，當前頁面開啟時會在滿體前自動發出推播警報！
+          強烈建議點擊「啟用推播通知」，以便系統在網頁開啟時送出滿體警報！
         </p>
       </div>
       <button onclick="requestNotificationPermission()" class="px-3 py-1.5 bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/40 rounded-lg text-xs font-medium shrink-0">
-        允許推播
+        允許通知
       </button>
     </div>
 
@@ -176,6 +188,60 @@
     </div>
 
   </main>
+
+  <!-- Mobile Guide Modal -->
+  <div id="mobileGuideModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden transition-opacity">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative overflow-hidden text-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h2 class="text-lg font-bold text-slate-100 flex items-center gap-2">
+          <i data-lucide="smartphone" class="w-5 h-5 text-blue-400"></i>
+          手機端提醒說明與設定
+        </h2>
+        <button onclick="closeMobileGuide()" class="text-slate-400 hover:text-slate-200 transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs sm:text-sm">
+        <div class="bg-amber-500/10 border border-amber-500/30 p-3 rounded-xl text-amber-300">
+          💡 <strong>為什麼手機瀏覽器背景容易漏通知？</strong><br>
+          iOS 與 Android 為節省電量，會在螢幕鎖定或切換 App 後將網頁「凍結」。為了 100% 不漏接提醒，建議使用以下方法：
+        </div>
+
+        <div class="space-y-2">
+          <h3 class="font-bold text-slate-100 text-sm flex items-center gap-1.5">
+            <i data-lucide="calendar" class="w-4 h-4 text-emerald-400"></i>
+            方法一：一鍵加入手機行事曆（推薦 ⭐⭐⭐⭐⭐）
+          </h3>
+          <p class="text-slate-400">
+            在遊戲卡片上點擊「<strong class="text-slate-200">加到行事曆</strong>」，系統會自動計算滿體時間並下載提醒檔（.ics）。下載後開啟即可加入手機內建日曆，滿體時手機系統會直接發出鬧鐘或推播通知！
+          </p>
+        </div>
+
+        <hr class="border-slate-800">
+
+        <div class="space-y-2">
+          <h3 class="font-bold text-slate-100 text-sm flex items-center gap-1.5">
+            <i data-lucide="share" class="w-4 h-4 text-blue-400"></i>
+            方法二：將網頁「加入主畫面」（iOS / Android PWA）
+          </h3>
+          <ul class="list-disc list-inside text-slate-400 space-y-1">
+            <li><strong>iPhone (Safari)</strong>：點選 Safari 下方中央的「分享按鈕 <i data-lucide="share" class="inline w-3 h-3"></i>」$\rightarrow$ 滑到下方點選「<strong class="text-slate-200">加入主畫面</strong>」。</li>
+            <li><strong>Android (Chrome)</strong>：點選 Chrome 右上角「選單 <i data-lucide="more-vertical" class="inline w-3 h-3"></i>」$\rightarrow$ 點選「<strong class="text-slate-200">安裝應用程式</strong>」或「加入主畫面」。</li>
+          </ul>
+          <p class="text-slate-400 text-xs mt-1">
+            從主畫面開啟後，點擊網頁頂部的「啟用推播通知」即可獲得更穩定的提醒！
+          </p>
+        </div>
+      </div>
+
+      <div class="pt-3 border-t border-slate-800 flex justify-end">
+        <button onclick="closeMobileGuide()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-medium transition">
+          我知道了
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- Add/Edit Modal -->
   <div id="gameModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm hidden transition-opacity">
@@ -200,37 +266,36 @@
           <select id="presetSelect" onchange="applyPreset(this.value)" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
             <option value="">-- 選擇預設範本 (可自動帶入參數) --</option>
             <option value="genshin">原神 (200體力 / 8分鐘回1體)</option>
-            <option value="starrail">崩壞：星穹鐵道 (240體力 / 6分鐘回1體)</option>
+            <option value="starrail">崩壞：星穹鐵道 (300體力 / 6分鐘回1體)</option>
             <option value="zzz">絕區零 (240體力 / 6分鐘回1體)</option>
-            <option value="bluearchive">蔚藍檔案 (240體力 / 6分鐘回1體)</option>
-            <option value="arknights">明日方舟 (135體力 / 6分鐘回1體)</option>
-            <option value="fgo">Fate/Grand Order (142體力 / 5分鐘回1體)</option>
-            <option value="nikke">勝利女神：妮姬 (100體力 / 10分鐘回1體)</option>
-            <option value="umamusume">賽馬娘 (100體力 / 10分鐘回1體)</option>
+            <option value="wuthering">鳴潮 (240體力 / 6分鐘回1體)</option>
+            <option value="arknights">明日方舟 (180體力 / 6分鐘回1體)</option>
+            <option value="endfield">明日方舟：終末地 (360體力 / 7.2分鐘回1體)</option>
           </select>
         </div>
 
         <hr class="border-slate-800/80 my-2">
 
-        <!-- Game Name -->
+        <!-- 1. Game Name -->
         <div>
           <label class="block text-xs font-medium text-slate-300 mb-1">1. 遊戲名稱 <span class="text-red-400">*</span></label>
           <input type="text" id="gameName" required placeholder="例如：原神、崩鐵" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500">
         </div>
 
-        <!-- Current & Max Stamina -->
+        <!-- Current Stamina -->
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-medium text-slate-300 mb-1">當前剩餘體力</label>
             <input type="number" id="currentStamina" min="0" required placeholder="例如：45" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500">
           </div>
+          <!-- 2. Max Stamina -->
           <div>
             <label class="block text-xs font-medium text-slate-300 mb-1">2. 體力上限 <span class="text-red-400">*</span></label>
             <input type="number" id="maxStamina" min="1" required placeholder="例如：200" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500">
           </div>
         </div>
 
-        <!-- Recovery Mechanism -->
+        <!-- 3. Recovery Mechanism -->
         <div>
           <label class="block text-xs font-medium text-slate-300 mb-1">3. 回體機制 (幾分鐘恢復 1 點體力) <span class="text-red-400">*</span></label>
           <div class="flex items-center gap-2">
@@ -239,7 +304,7 @@
           </div>
         </div>
 
-        <!-- Notification Lead Time -->
+        <!-- 4. Notification Lead Time -->
         <div>
           <label class="block text-xs font-medium text-slate-300 mb-1">4. 提早多久發出通知？ <span class="text-red-400">*</span></label>
           <select id="notifyLeadTime" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
@@ -286,21 +351,22 @@
   </div>
 
   <script>
+    // State management
     let games = [];
     let activeColor = 'blue';
     let checkTimer = null;
 
+    // Preset Data
     const PRESETS = {
       genshin: { name: '原神', max: 200, rate: 8, color: 'amber' },
-      starrail: { name: '崩壞：星穹鐵道', max: 240, rate: 6, color: 'purple' },
+      starrail: { name: '崩壞：星穹鐵道', max: 300, rate: 6, color: 'purple' },
       zzz: { name: '絕區零', max: 240, rate: 6, color: 'indigo' },
-      bluearchive: { name: '蔚藍檔案', max: 240, rate: 6, color: 'blue' },
-      arknights: { name: '明日方舟', max: 135, rate: 6, color: 'emerald' },
-      fgo: { name: 'Fate/Grand Order', max: 142, rate: 5, color: 'rose' },
-      nikke: { name: '勝利女神：妮姬', max: 100, rate: 10, color: 'amber' },
-      umamusume: { name: '賽馬娘', max: 100, rate: 10, color: 'emerald' }
+      wuthering: { name: '鳴潮', max: 240, rate: 6, color: 'emerald' },
+      arknights: { name: '明日方舟', max: 180, rate: 6, color: 'rose' },
+      endfield: { name: '明日方舟：終末地', max: 360, rate: 7.2, color: 'blue' }
     };
 
+    // Color maps for Tailwind styles
     const COLOR_CLASSES = {
       blue: { bg: 'bg-blue-500', border: 'border-blue-500/40', text: 'text-blue-400', ring: 'ring-blue-500' },
       indigo: { bg: 'bg-indigo-500', border: 'border-indigo-500/40', text: 'text-indigo-400', ring: 'ring-indigo-500' },
@@ -310,14 +376,20 @@
       purple: { bg: 'bg-purple-500', border: 'border-purple-500/40', text: 'text-purple-400', ring: 'ring-purple-500' }
     };
 
+    // Initialize application on page load
     window.onload = function() {
       loadGames();
       updateNotificationUI();
       renderGames();
+      
+      // Start main timer loop (updates every 1 sec)
       checkTimer = setInterval(tick, 1000);
+
+      // Initialize icons
       lucide.createIcons();
     };
 
+    // Load from LocalStorage
     function loadGames() {
       const saved = localStorage.getItem('stamina_games');
       if (saved) {
@@ -329,14 +401,17 @@
       }
     }
 
+    // Save to LocalStorage
     function saveGames() {
       localStorage.setItem('stamina_games', JSON.stringify(games));
     }
 
+    // Calculate exact current stamina based on timestamp & fullTimestamp
     function getCalculatedStamina(game) {
       const now = Date.now();
       const rateMs = game.recoveryRateMins * 60 * 1000;
       
+      // Auto-migrate old data format if fullTimestamp is missing
       if (!game.fullTimestamp) {
         const missing = game.maxStamina - (game.currentStamina || 0);
         game.fullTimestamp = (game.lastUpdatedTimestamp || now) + missing * rateMs;
@@ -351,6 +426,7 @@
       return Math.max(0, game.maxStamina - missingStamina);
     }
 
+    // Calculate remaining time to max in seconds
     function getTimeToMaxSeconds(game) {
       const now = Date.now();
       if (!game.fullTimestamp) getCalculatedStamina(game);
@@ -358,6 +434,7 @@
       return Math.max(0, remainingSec);
     }
 
+    // Calculate remaining time to next +1 stamina point in seconds
     function getTimeToNextPointSeconds(game) {
       const timeToMaxSec = getTimeToMaxSeconds(game);
       if (timeToMaxSec <= 0) return 0;
@@ -366,14 +443,16 @@
       return secToNext === 0 ? rateSec : secToNext;
     }
 
+    // Main interval tick
     function tick() {
       renderGames();
       checkNotifications();
     }
 
+    // Request notification permission
     function requestNotificationPermission() {
       if (!("Notification" in window)) {
-        showToast("您的瀏覽器不支援 Web 通知，建議套用行事曆提醒功能", "alert-circle");
+        showToast("您的瀏覽器不支援桌面推播通知功能，建議使用手機行事曆提醒功能", "alert-circle");
         return;
       }
 
@@ -383,7 +462,7 @@
           showToast("推播通知已順利啟用！", "check-circle");
           playAlertSound();
         } else if (permission === "denied") {
-          showToast("推播通知被封鎖，建議使用「加到行事曆」確保手機響鈴！", "alert-triangle");
+          showToast("推播通知被拒絕，請使用「加到行事曆」獲取手機提醒", "alert-triangle");
         }
       });
     }
@@ -394,7 +473,7 @@
       const alertBanner = document.getElementById('notificationAlertBanner');
 
       if (!("Notification" in window)) {
-        if (btnText) btnText.innerText = "不支援推播";
+        if (btnText) btnText.innerText = "不支援通知";
         return;
       }
 
@@ -402,6 +481,10 @@
         if (btnText) btnText.innerText = "通知已開啟";
         if (icon) icon.setAttribute('data-lucide', 'bell');
         if (alertBanner) alertBanner.classList.add('hidden');
+      } else if (Notification.permission === "denied") {
+        if (btnText) btnText.innerText = "通知已封鎖";
+        if (icon) icon.setAttribute('data-lucide', 'bell-off');
+        if (alertBanner) alertBanner.classList.remove('hidden');
       } else {
         if (btnText) btnText.innerText = "啟用推播通知";
         if (icon) icon.setAttribute('data-lucide', 'bell');
@@ -410,41 +493,112 @@
       lucide.createIcons();
     }
 
+    // Play Alert Sound using Web Audio API (No external file needed)
     function playAlertSound() {
       try {
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         if (!AudioContext) return;
         const ctx = new AudioContext();
 
+        // Dual Tone Chime
         const playNote = (freq, time, duration) => {
           const osc = ctx.createOscillator();
           const gain = ctx.createGain();
           osc.type = 'sine';
           osc.frequency.setValueAtTime(freq, ctx.currentTime + time);
+          
           gain.gain.setValueAtTime(0.3, ctx.currentTime + time);
           gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + time + duration);
+
           osc.connect(gain);
           gain.connect(ctx.destination);
+
           osc.start(ctx.currentTime + time);
           osc.stop(ctx.currentTime + time + duration);
         };
 
-        playNote(523.25, 0, 0.2);
-        playNote(659.25, 0.15, 0.3);
-        playNote(783.99, 0.3, 0.4);
+        playNote(523.25, 0, 0.2); // C5
+        playNote(659.25, 0.15, 0.3); // E5
+        playNote(783.99, 0.3, 0.4); // G5
       } catch (e) {
         console.error("Audio playback error:", e);
       }
     }
 
+    // Export .ics Calendar File for 100% Reliable Mobile Alarm Notifications
+    function exportCalendarICS(index) {
+      const game = games[index];
+      const timeToMaxSec = getTimeToMaxSeconds(game);
+
+      if (timeToMaxSec <= 0) {
+        showToast(`${game.name} 體力已為滿額狀態，無需設定提醒！`, 'info');
+        return;
+      }
+
+      const fullTime = new Date(Date.now() + timeToMaxSec * 1000);
+
+      const formatICSDate = (d) => {
+        const pad = (n) => String(n).padStart(2, '0');
+        return d.getUTCFullYear() +
+          pad(d.getUTCMonth() + 1) +
+          pad(d.getUTCDate()) + 'T' +
+          pad(d.getUTCHours()) +
+          pad(d.getUTCMinutes()) +
+          pad(d.getUTCSeconds()) + 'Z';
+      };
+
+      const startTimeStr = formatICSDate(fullTime);
+      const endTimeStr = formatICSDate(new Date(fullTime.getTime() + 5 * 60 * 1000)); // 5 mins event duration
+
+      const icsData = 
+`BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Stamina Reminder Dashboard//TW
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+SUMMARY:⚡ ${game.name} 體力恢復滿額提醒！
+DESCRIPTION:${game.name} 當前體力已恢復滿額 (${game.maxStamina}/${game.maxStamina})，快登入遊戲消耗體力吧！
+DTSTART:${startTimeStr}
+DTEND:${endTimeStr}
+BEGIN:VALARM
+TRIGGER:-PT0M
+ACTION:DISPLAY
+DESCRIPTION:${game.name} 滿體提醒
+END:VALARM
+END:VEVENT
+END:VCALENDAR`;
+
+      const blob = new Blob([icsData], { type: 'text/calendar;charset=utf-8' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${game.name}_滿體提醒.ics`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+
+      showToast(`已匯出 ${game.name} 行事曆提醒檔 (.ics)，請開啟檔案存入日曆！`, 'check-circle');
+    }
+
+    function openMobileGuide() {
+      document.getElementById('mobileGuideModal').classList.remove('hidden');
+    }
+
+    function closeMobileGuide() {
+      document.getElementById('mobileGuideModal').classList.add('hidden');
+    }
+
+    // Check if any game hit notification threshold
     function checkNotifications() {
       games.forEach(game => {
         const timeToMaxSec = getTimeToMaxSeconds(game);
         const leadSec = (game.notifyLeadTimeMins || 0) * 60;
 
+        // 1. Warning Lead-time Notification
         if (leadSec > 0 && timeToMaxSec <= leadSec && timeToMaxSec > 0 && !game.notifiedWarning) {
           game.notifiedWarning = true;
           saveGames();
+
           const minsLeft = Math.ceil(timeToMaxSec / 60);
           sendNotification(
             `⚡ ${game.name} 體力即將滿額！`,
@@ -452,9 +606,11 @@
           );
         }
 
+        // 2. Full Stamina Notification
         if (timeToMaxSec === 0 && !game.notifiedFull) {
           game.notifiedFull = true;
           saveGames();
+
           sendNotification(
             `🚨 ${game.name} 體力已經完全額滿！`,
             `當前體力已達到上限 (${game.maxStamina}/${game.maxStamina})，快上線消耗體力吧！`
@@ -465,6 +621,7 @@
 
     function sendNotification(title, body) {
       playAlertSound();
+
       if ("Notification" in window && Notification.permission === "granted") {
         new Notification(title, {
           body: body,
@@ -473,56 +630,6 @@
       } else {
         showToast(`${title} - ${body}`, 'bell');
       }
-    }
-
-    function exportToCalendar(index) {
-      const game = games[index];
-      const timeToMaxSec = getTimeToMaxSeconds(game);
-      
-      if (timeToMaxSec <= 0) {
-        showToast(`${game.name} 體力已經滿了，無需加入提醒！`, "alert-triangle");
-        return;
-      }
-
-      const fullTime = new Date(Date.now() + timeToMaxSec * 1000);
-      const leadMins = game.notifyLeadTimeMins || 0;
-      const alarmTime = new Date(fullTime.getTime() - leadMins * 60 * 1000);
-
-      const formatDate = (date) => {
-        return date.toISOString().replace(/-|:|\.\d+/g, '');
-      };
-
-      const startDateStr = formatDate(alarmTime);
-      const endDateStr = formatDate(new Date(alarmTime.getTime() + 15 * 60 * 1000));
-
-      const icsContent = 
-`BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Stamina Tracker//Game Alarm//EN
-BEGIN:VEVENT
-UID:${Date.now()}-${index}@stamina-tracker
-DTSTAMP:${formatDate(new Date())}
-DTSTART:${startDateStr}
-DTEND:${endDateStr}
-SUMMARY:⚡ ${game.name} 體力回復提醒
-DESCRIPTION:${game.name} 體力將於 ${fullTime.getHours()}:${String(fullTime.getMinutes()).padStart(2, '0')} 達到上限 (${game.maxStamina} 點)！
-BEGIN:VALARM
-TRIGGER:-PT0M
-ACTION:DISPLAY
-DESCRIPTION:體力回復提醒
-END:VALARM
-END:VEVENT
-END:VCALENDAR`;
-
-      const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = window.URL.createObjectURL(blob);
-      link.setAttribute('download', `${game.name}_體力提醒.ics`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      showToast(`已下載 ${game.name} 行事曆提醒！請點擊開啟匯入手機`, "calendar");
     }
 
     function updateStats() {
@@ -537,7 +644,7 @@ END:VCALENDAR`;
         if (timeToMaxSec <= 0) {
           fullCount++;
         } else {
-          if (timeToMaxSec <= 1800) {
+          if (timeToMaxSec <= 1800) { // < 30 mins
             warningCount++;
           }
           if (game.fullTimestamp < earliestFullTimestamp) {
@@ -587,6 +694,7 @@ END:VCALENDAR`;
         const timeToMaxSec = getTimeToMaxSeconds(game);
         const theme = COLOR_CLASSES[game.themeColor] || COLOR_CLASSES.blue;
 
+        // Calculate Target Time
         let timeStr = '';
         let fullAtTimeStr = '';
         let nextPointStr = '';
@@ -603,6 +711,7 @@ END:VCALENDAR`;
           const pad = n => String(n).padStart(2, '0');
           timeStr = `${hrs > 0 ? hrs + '小時 ' : ''}${pad(mins)}分 ${pad(secs)}秒`;
 
+          // Calculate time left for next single stamina point (+1)
           const nextSec = getTimeToNextPointSeconds(game);
           const nextMins = Math.floor(nextSec / 60);
           const nextSecs = Math.floor(nextSec % 60);
@@ -614,6 +723,7 @@ END:VCALENDAR`;
           fullAtTimeStr = `${dayLabel} ${pad(targetDate.getHours())}:${pad(targetDate.getMinutes())}`;
         }
 
+        // Progress bar color based on fullness
         let barBg = 'bg-blue-500';
         if (percent >= 100) barBg = 'bg-red-500 animate-pulse';
         else if (percent >= 85) barBg = 'bg-amber-500';
@@ -626,10 +736,11 @@ END:VCALENDAR`;
               <div class="flex items-center justify-between mb-3">
                 <div class="flex items-center gap-2">
                   <div class="w-3 h-3 rounded-full ${theme.bg}"></div>
-                  <h3 class="font-bold text-base text-slate-100 truncate max-w-[170px]">${escapeHtml(game.name)}</h3>
+                  <h3 class="font-bold text-base text-slate-100 truncate max-w-[150px]">${escapeHtml(game.name)}</h3>
                 </div>
                 <div class="flex items-center gap-1">
-                  <button onclick="exportToCalendar(${index})" class="p-1.5 text-indigo-400 hover:text-indigo-300 hover:bg-slate-800 rounded-lg transition" title="加到手機行事曆提醒">
+                  <!-- Add to Calendar Button -->
+                  <button onclick="exportCalendarICS(${index})" class="p-1.5 text-amber-400/80 hover:text-amber-300 hover:bg-slate-800 rounded-lg transition" title="加到手機行事曆鬧鐘">
                     <i data-lucide="calendar-plus" class="w-4 h-4"></i>
                   </button>
                   <button onclick="openEditModal(${index})" class="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition" title="編輯">
@@ -702,15 +813,20 @@ END:VCALENDAR`;
             </div>
 
             <!-- Quick Action Buttons -->
-            <div class="pt-2 border-t border-slate-800/80">
-              <div class="text-[11px] font-medium text-slate-400 mb-1.5">快速消耗 / 設定體力</div>
+            <div class="pt-2 border-t border-slate-800/80 space-y-1.5">
+              <div class="flex items-center justify-between text-[11px] font-medium text-slate-400">
+                <span>快速消耗 / 設定體力</span>
+                <button onclick="exportCalendarICS(${index})" class="text-amber-400 hover:underline flex items-center gap-1">
+                  <i data-lucide="bell-ring" class="w-3 h-3"></i> 加到行事曆
+                </button>
+              </div>
               <div class="grid grid-cols-4 gap-1.5">
                 <button onclick="adjustStamina(${index}, -20)" class="py-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-300 rounded text-xs font-semibold transition">-20</button>
                 <button onclick="adjustStamina(${index}, -30)" class="py-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-300 rounded text-xs font-semibold transition">-30</button>
                 <button onclick="adjustStamina(${index}, -40)" class="py-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-300 rounded text-xs font-semibold transition">-40</button>
                 <button onclick="adjustStamina(${index}, -60)" class="py-1.5 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-300 rounded text-xs font-semibold transition">-60</button>
               </div>
-              <div class="grid grid-cols-2 gap-1.5 mt-1.5">
+              <div class="grid grid-cols-2 gap-1.5">
                 <button onclick="setStaminaTo(${index}, 0)" class="py-1 bg-red-500/10 hover:bg-red-500/20 text-red-300 border border-red-500/30 rounded text-xs font-medium transition">清空 (0體)</button>
                 <button onclick="setStaminaTo(${index}, ${game.maxStamina})" class="py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded text-xs font-medium transition">填滿 (${game.maxStamina})</button>
               </div>
@@ -724,6 +840,7 @@ END:VCALENDAR`;
       lucide.createIcons();
     }
 
+    // Adjust stamina relative to calculated value without interrupting next-point countdown
     function adjustStamina(index, delta) {
       const game = games[index];
       const now = Date.now();
@@ -733,9 +850,11 @@ END:VCALENDAR`;
       if (delta < 0) {
         const spendAmount = Math.abs(delta);
         if (current >= game.maxStamina) {
+          // Was FULL! Restart tick countdown from NOW
           const newStamina = Math.max(0, game.maxStamina - spendAmount);
           game.fullTimestamp = now + (game.maxStamina - newStamina) * rateMs;
         } else {
+          // Was NOT FULL! Maintain exact phase of next +1 point countdown
           game.fullTimestamp += spendAmount * rateMs;
         }
         game.notifiedWarning = false;
@@ -752,6 +871,7 @@ END:VCALENDAR`;
       showToast(`已扣除 ${game.name} 體力 ${Math.abs(delta)} 點`, 'check');
     }
 
+    // Set stamina directly while preserving sub-point countdown phase
     function setStaminaTo(index, val) {
       const game = games[index];
       const now = Date.now();
@@ -762,15 +882,14 @@ END:VCALENDAR`;
       if (val >= game.maxStamina) {
         game.fullTimestamp = now;
       } else {
-        const wasFull = !game.fullTimestamp || now >= game.fullTimestamp;
-        if (wasFull) {
-          game.fullTimestamp = now + (game.maxStamina - val) * rateMs;
-        } else {
-          const remMs = game.fullTimestamp - now;
-          let phaseMs = remMs % rateMs;
-          if (phaseMs === 0) phaseMs = rateMs;
-          game.fullTimestamp = now + (game.maxStamina - val - 1) * rateMs + phaseMs;
+        // 保留原先距離 +1 體力的剩餘毫秒數 (Phase Preservation)
+        let phaseMs = rateMs;
+        if (game.fullTimestamp && game.fullTimestamp > now) {
+          phaseMs = (game.fullTimestamp - now) % rateMs;
+          if (phaseMs <= 0) phaseMs = rateMs;
         }
+        const missingUnits = game.maxStamina - val;
+        game.fullTimestamp = now + (missingUnits - 1) * rateMs + phaseMs;
       }
 
       game.currentStamina = val;
@@ -786,6 +905,7 @@ END:VCALENDAR`;
       showToast(`已更新 ${game.name} 體力為 ${val}`, 'check');
     }
 
+    // Delete game
     function deleteGame(index) {
       const gameName = games[index].name;
       games.splice(index, 1);
@@ -794,6 +914,7 @@ END:VCALENDAR`;
       showToast(`已移除 ${gameName}`, 'trash');
     }
 
+    // Modal Handlers
     function openAddModal() {
       document.getElementById('modalTitle').innerText = '新增手遊體力設定';
       document.getElementById('gameForm').reset();
@@ -824,16 +945,18 @@ END:VCALENDAR`;
       document.getElementById('gameModal').classList.add('hidden');
     }
 
+    // Apply presets
     function applyPreset(key) {
       if (!key || !PRESETS[key]) return;
       const p = PRESETS[key];
       document.getElementById('gameName').value = p.name;
       document.getElementById('maxStamina').value = p.max;
       document.getElementById('recoveryRate').value = p.rate;
-      document.getElementById('currentStamina').value = Math.floor(p.max * 0.3);
+      document.getElementById('currentStamina').value = Math.floor(p.max * 0.3); // default fill 30%
       selectColor(p.color);
     }
 
+    // Select color theme
     function selectColor(color) {
       activeColor = color;
       document.getElementById('themeColor').value = color;
@@ -848,6 +971,7 @@ END:VCALENDAR`;
       });
     }
 
+    // Submit Game Form
     function handleFormSubmit(e) {
       e.preventDefault();
 
@@ -865,45 +989,49 @@ END:VCALENDAR`;
       }
 
       const now = Date.now();
+      const clampedCurrent = Math.min(currentVal, maxVal);
       const rateMs = rateVal * 60 * 1000;
-      let calculatedFullTimestamp = now;
+      let fullTimestamp = now;
 
-      if (currentVal >= maxVal) {
-        calculatedFullTimestamp = now;
-      } else {
+      if (clampedCurrent < maxVal) {
+        let phaseMs = rateMs;
+
+        // 如果是編輯現有遊戲，計算原有的倒數比例以保留 +1 體力倒數進度
         if (editIndex !== "" && games[editIndex]) {
           const oldGame = games[editIndex];
-          const oldFull = oldGame.fullTimestamp;
-          if (oldFull && oldFull > now) {
-            const remMs = oldFull - now;
-            let phaseMs = remMs % rateMs;
-            if (phaseMs === 0) phaseMs = rateMs;
-            calculatedFullTimestamp = now + (maxVal - Math.min(currentVal, maxVal) - 1) * rateMs + phaseMs;
-          } else {
-            calculatedFullTimestamp = now + (maxVal - Math.min(currentVal, maxVal)) * rateMs;
+          const oldRateMs = (oldGame.recoveryRateMins || rateVal) * 60 * 1000;
+          if (oldGame.fullTimestamp && oldGame.fullTimestamp > now) {
+            const oldPhase = (oldGame.fullTimestamp - now) % oldRateMs;
+            if (oldPhase > 0) {
+              const phaseRatio = oldPhase / oldRateMs;
+              phaseMs = phaseRatio * rateMs;
+            }
           }
-        } else {
-          calculatedFullTimestamp = now + (maxVal - Math.min(currentVal, maxVal)) * rateMs;
         }
+
+        const missingUnits = maxVal - clampedCurrent;
+        fullTimestamp = now + (missingUnits - 1) * rateMs + phaseMs;
       }
 
       const gameData = {
         name,
-        currentStamina: Math.min(currentVal, maxVal),
+        currentStamina: clampedCurrent,
         maxStamina: maxVal,
         recoveryRateMins: rateVal,
         notifyLeadTimeMins: leadTimeVal,
         themeColor,
         lastUpdatedTimestamp: now,
-        fullTimestamp: calculatedFullTimestamp,
+        fullTimestamp: fullTimestamp,
         notifiedWarning: false,
         notifiedFull: false
       };
 
       if (editIndex !== "") {
+        // Edit existing
         games[editIndex] = gameData;
         showToast(`已更新 ${name} 設定`, 'check');
       } else {
+        // Add new
         games.push(gameData);
         showToast(`已新增 ${name}`, 'check');
       }
@@ -913,6 +1041,7 @@ END:VCALENDAR`;
       closeModal();
     }
 
+    // Toast Alert Helper
     function showToast(msg, iconName = 'info') {
       const toast = document.getElementById('toast');
       const toastMsg = document.getElementById('toastMsg');
@@ -933,6 +1062,7 @@ END:VCALENDAR`;
       }, 3000);
     }
 
+    // Escape HTML string to prevent XSS
     function escapeHtml(str) {
       return str.replace(/&/g, "&amp;")
                 .replace(/</g, "&lt;")
